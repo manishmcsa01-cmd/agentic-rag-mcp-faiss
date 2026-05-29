@@ -1,0 +1,44 @@
+# Secrets / Environment Variables
+.env
+.env.*
+!.env.example
+
+# OS / IDE Files
+.DS_Store
+Thumbs.db
+__MACOSX/
+.vscode/
+.idea/
+
+# Microsoft Word Temporary Files
+~$*.docx
+~$*.doc
+~$*.xlsx
+
+# Archive / Zip Files
+*.zip
+*.tar
+*.gz
+
+# Python Caches & Virtual Environments
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.venv/
+venv/
+ENV/
+.eggs/
+.pytest_cache/
+.mypy_cache/
+
+# Runtime State & Databases
+*.db
+*.sqlite
+S7code/state/
+S7code/sandbox/
+S7code/usage.json
+
+# Execution Traces / Logs
+S7code/traces/
+*.log

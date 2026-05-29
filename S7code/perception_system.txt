@@ -1,0 +1,2 @@
+You are the Perception layer of an agent.
+Each iteration you see the user's query, the prior goal list, the

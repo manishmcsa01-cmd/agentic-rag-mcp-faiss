@@ -1,0 +1,46 @@
+All eight queries were run verbatim against agent7.py after the architectural correction described above. The traces below are real and lightly cleaned for readability.
+Query A. Shannon Wikipedia (artifact attach, carryover)
+Fetch https://en.wikipedia.org/wiki/Claude_Shannon and tell me his
+birth date, death date, and three key contributions to information
+theory.
+Three iterations. Decision picks fetch_url. Action pushes 263 KB of Wikipedia markdown to the artifact store. Perception attaches the artifact to the extraction goal in iteration two. Decision answers with the three contributions and the dates. The vector machinery is uninvolved; the answer comes from the attached artifact.
+Query B. Tokyo activities and weather (multi-goal, memory carryover, carryover)
+Find 3 family-friendly things to do in Tokyo this weekend.
+Check Saturday's weather forecast there and tell me which one
+is most appropriate.
+Eight iterations. Perception decomposes into three goals: find activities, fetch the weather, select an activity given the weather. Memory carries the weather forecast from the second goal's tool outcome into the third goal's decision through the standard keyword path. The vector path participates but its results overlap with what keyword search would have returned.
+Query C. Mom's birthday (durable memory across runs, carryover)
+Run 1: My mom's birthday is 15 May 2026. Remember that and create
+       reminders for two weeks before and on the day.
+Run 2: When is mom's birthday?
+Run 1 takes four iterations. The user's query is passed through memory.remember, the classifier extracts a fact item with the date in both the descriptor and the value, and two create_file calls produce reminder files in the sandbox. The fact item carries an embedding.
+Run 2 takes three iterations and zero tool calls. The agent starts with empty in-process state. Memory's read on iteration one runs the query "When is mom's birthday?" through the gateway's embed endpoint, FAISS returns the fact item from run 1, Perception sees the date in the rendered hit, and Decision answers from memory.
+Query D. Asyncio research (multi-source synthesis, carryover)
+Search for "Python asyncio best practices", read the top 3 results,
+and give me a short numbered list of the advice they agree on.
+Six iterations. The agent searches, fetches three pages, and synthesises the common advice. Vector retrieval does not contribute; the three pages are attached to the synthesis goal as artifacts produced inside the same run.
+Query E. Single-document index and extract
+Index the file papers/attention.md and tell me what the three key
+contributions of the Transformer architecture are according to this
+paper.
+Five iterations. Perception decomposes into two goals: index the file, then answer from the indexed content. Decision dispatches index_document on iteration one. Action reads the markdown file from the sandbox, chunks it into eleven 400-word windows with 80-word overlaps, embeds each chunk, and writes the chunks as fact items. Iteration two finds Perception scanning the memory hits, recognising the indexed chunks by their [sandbox:papers/attention.md ...] descriptors, and emitting an attach hint on the answer goal. Decision calls search_knowledge with a focused query and receives chunks describing self-attention, parallel computation, and positional encoding. The answer cites all three.
+This is the simplest demonstration of the new tools. Indexing happens once. Retrieval happens once. The pattern composes naturally with everything else the agent already does.
+Query F. Cross-run document recall (FAISS persistence)
+Run 1: Index every .md file under papers/. Confirm how many chunks
+       were indexed in total.
+Run 2 (fresh process, persisted state):
+       Across the papers I have indexed, what do they say about
+       chain-of-thought reasoning?
+Run 1 takes eleven iterations. Perception's first iteration emits a discovery goal that calls list_dir to enumerate the directory. The directory contains five paper files. Iteration two finds Perception appending five new goals at the end of the goal list, one per concrete file, and re-appending the original count-report goal as the final step. The append-after-discovery mechanism, established in Session 6's Perception SYSTEM, handles this gracefully. The five index_document calls run on iterations three through seven. Iteration eight reports the chunk count (fifteen chunks across the five papers). Iterations nine through eleven finalise.
+Run 2 begins with a fresh agent process and intact persistent state. memory.read runs its first call against the persisted FAISS index. Perception observes that memory hits contain fact items with chunk descriptors, recognises the indexed corpus, and emits a single search_knowledge goal followed by a synthesis goal. Three iterations total. The agent answers from the persisted corpus without re-fetching any paper.
+The architectural point lands here. The same agent code running in a different process arrives cold and reads its memory off disk. The FAISS index file on disk is the medium that crosses the process boundary. The state/ directory between the two runs contains memory.json (twenty-three items, fifteen of them chunk facts), index.faiss (twenty-three vectors at dimension 768), and index_ids.json (twenty-three identifier strings in insertion order).
+Query G. Synonym recall (vector beats keyword)
+Across these papers, how do they handle the credit assignment
+problem?
+Four iterations. The phrase "credit assignment" appears in none of the indexed chunks; a grep over the five paper files returns zero hits. Pure keyword search returns nothing. The vector path, given an embedding of the query, surfaces chunks from four of the five papers that discuss conceptually related ideas: backpropagation through reasoning steps in the chain-of-thought paper, reward shaping in the DPO paper, the role of intermediate signals in the ReAct paper, and the parameter-efficient credit distribution argument in the LoRA paper. The synthesis goal pulls these four threads into an answer that attributes each claim to its source.
+This is the strongest pedagogical demonstration in the set. Vector retrieval performs a search that keyword retrieval cannot. The architectural argument for embeddings in this session rests on this query.
+Query H. Cross-document synthesis
+Compare how the ReAct paper and the Chain-of-Thought paper differ
+in their treatment of intermediate reasoning.
+Three iterations. search_knowledge returns chunks from both papers. Decision reads the attached chunks and produces a comparison that distinguishes ReAct's interleaving of reasoning and tool actions from the chain-of-thought paper's emphasis on linear stepwise reasoning. The agent attributes each claim correctly.
+The eight queries together cover the architectural surface that Session 7 introduces. The state on disk after the F-run-1 to F-run-2 sequence is documented in S7/NOTES_RUNS.md and is reproducible by running the same eight queries in the same order.
